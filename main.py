@@ -21,86 +21,16 @@ link_regex = re.compile(r"https?://(?:www\.)?\S+")
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Lista de palavrões para moderação
 palavroes = [
     "merda", "bosta", "porra", "caralho", "cacete", "foda", "puta", "puto", "putaria",
     "desgraça", "arrombado", "viado", "veado", "fdp", "filho da puta", "foda-se",
     "fodase", "cu", "cuzão", "cuzinho", "babaca", "otário", "otaria", "imbecil",
     "idiota", "corno", "corna", "piranha", "vagabunda", "vagabundo", "escroto",
     "mongol", "retardado", "buceta", "xoxota", "pinto", "pau no cu", "pau no seu cu",
-    "vai se fuder", "vai tomar no cu", "vsf", "vtmnc", "caralh*", "pqp", "porcaria", 
+    "vai se fuder", "vai tomar no cu", "vsf", "vtmnc", "vtnc", "vtmc","caralh*", "pqp", "porcaria", 
     "macaco", "preto", "senzala", "chipanze", "sua vagabunda"
 ]
-
-@bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
-    
-    conteudo = message.content.lower()  
-
-    if any(palavra in conteudo for palavra in palavroes):
-        try:
-            await message.delete()
-            await message.channel.send(f"{message.author.mention}, cuidado com as palavras! 🚨", delete_after=5)
-
-            mute_role = discord.utils.get(message.guild.roles, name="Mutado")
-
-            if not mute_role:
-                mute_role = await message.guild.create_role(name="Mutado")
-                for channel in message.guild.channels:
-                    await channel.set_permissions(mute_role, send_messages=False, speak=False)
-
-            await message.author.add_roles(mute_role)
-            await message.channel.send(f"{message.author.mention} foi mutado por 3 minutos! ⏳", delete_after=5)
-
-            await enviar_alerta(message.guild, message.author, "Mute Automático", "Uso de palavras proibidas")
-
-            await asyncio.sleep(180)
-
-            await message.author.remove_roles(mute_role)
-            await message.channel.send(f"{message.author.mention} foi desmutado! ✅", delete_after=5)
-            await enviar_alerta(message.guild, message.author, "Desmute", "Tempo de mute expirado")
-
-        except discord.Forbidden:
-            print("❌ O bot não tem permissão para deletar mensagens ou mutar membros.")
-        except discord.HTTPException:
-            print("❌ Erro ao tentar excluir a mensagem ou aplicar o mute.")
-
-
-    if link_regex.search(conteudo):
-        print(f"🔍 Link detectado na mensagem de {message.author}: {message.content}")  
-        
-        for link in links_suspeitos:
-            if link in conteudo:
-                print(f"⚠️ Link suspeito detectado: {link}")  
-                
-                if message.author.guild_permissions.manage_messages:
-                    print(f"🔵 {message.author} tem permissão para gerenciar mensagens. Ignorando...")
-                    return
-                
-                try:
-                    await message.delete()
-                    await message.channel.send(f"🚨 {message.author.mention}, links suspeitos não são permitidos!", delete_after=5)
-                    
-                 
-                    if message.guild.me.guild_permissions.ban_members:
-                        await message.guild.ban(message.author, reason="Enviou link suspeito!")
-                        await message.channel.send(f"🔨 {message.author.mention} foi **banido** por enviar um link suspeito!")
-                        await enviar_alerta(message.guild, message.author, "Ban Automático", "Enviou link suspeito")
-                    else:
-                        print("❌ O bot não tem permissão para banir membros!")
-
-                except discord.Forbidden:
-                    print("❌ O bot não tem permissão para deletar mensagens ou banir membros!")
-                except discord.HTTPException:
-                    print("❌ Erro ao tentar excluir a mensagem ou banir o usuário.")
-
-                return  
-
-    if "aviso" in conteudo:  
-        await message.channel.send(f"⚠️ {message.author.mention}, sua mensagem foi analisada pela moderação.", delete_after=5)
-
-    await bot.process_commands(message)
 
 
 
@@ -108,7 +38,59 @@ async def on_message(message):
 async def on_ready():
     print("Bot inicializado com sucesso!")
 
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
 
+    conteudo = message.content.lower()
+
+    # 🛑 🚨 DETECTA PALAVRÕES
+    if any(palavra in conteudo for palavra in palavroes):
+        try:
+            await message.delete()
+            await message.channel.send(f"🚨 {message.author.mention}, sua mensagem foi removida por conter palavras inadequadas!", delete_after=5)
+
+            # 🔇 Aplicar mute
+            mute_role = discord.utils.get(message.guild.roles, name="Mutado")
+            if not mute_role:
+                mute_role = await message.guild.create_role(name="Mutado")
+                for channel in message.guild.channels:
+                    await channel.set_permissions(mute_role, send_messages=False, speak=False)
+
+            await message.author.add_roles(mute_role)
+            await message.channel.send(f"🔇 {message.author.mention} foi **mutado por 5 minutos** por usar linguagem inadequada!")
+
+            await asyncio.sleep(300)  # Espera 5 minutos (300 segundos)
+
+            await message.author.remove_roles(mute_role)
+            await message.channel.send(f"✅ {message.author.mention} foi **desmutado automaticamente**!")
+
+        except discord.Forbidden:
+            print("❌ O bot não tem permissão para mutar ou excluir mensagens.")
+        except discord.HTTPException:
+            print("❌ Erro ao tentar excluir a mensagem ou aplicar o mute.")
+
+    # 🔗 🚨 DETECTA LINKS SUSPEITOS
+    if link_regex.search(conteudo):
+        for link in links_suspeitos:
+            if link in conteudo:
+                if message.author.guild_permissions.manage_messages:
+                    return  # Se o usuário for um moderador, ignora
+                
+                try:
+                    await message.delete()
+                    await message.guild.ban(message.author, reason="Enviou link suspeito!")
+                    await message.channel.send(f"🚨 {message.author.mention} foi **banido** por enviar um link suspeito!")
+                
+                except discord.Forbidden:
+                    print("❌ O bot não tem permissão para banir usuários.")
+                except discord.HTTPException:
+                    print("❌ Erro ao tentar excluir a mensagem ou banir o usuário.")
+                
+                return  # Sai da função para evitar mensagens duplicadas
+
+    await bot.process_commands(message)
 @bot.command()
 @commands.has_permissions(ban_members=True)
 async def ban(ctx, member: discord.Member, *, reason="Membro Não especificado"):
@@ -146,15 +128,109 @@ async def ban_error(ctx, error):
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.reply("❌ Use o comando corretamente: `!ban @usuário [motivo]`")
 
+ALERTA_CANAL_ID = 1348389019372748820  # ID do canal de alertas
+
+async def enviar_alerta(guild, usuario, tipo, motivo, responsavel=None):
+    canal_alerta = guild.get_channel(ALERTA_CANAL_ID)
+    if not canal_alerta:
+        print("❌ Canal de alertas não encontrado!")
+        return
+
+    embed = discord.Embed(
+        title="🚨 PUNIÇÃO APLICADA 🚨",
+        description=f"**Usuário:** {usuario.mention} (`{usuario.id}`)\n"
+                    f"**Punição:** `{tipo}`\n"
+                    f"**Motivo:** `{motivo}`",
+        color=discord.Color.red()
+    )
+
+    if responsavel:
+        embed.add_field(name="👮 Responsável:", value=responsavel.mention, inline=False)
+
+    embed.set_thumbnail(url=usuario.avatar.url if usuario.avatar else usuario.default_avatar.url)
+    await canal_alerta.send(embed=embed)
+
+
+@bot.command()
+@commands.has_permissions(manage_roles=True)
+async def mute(ctx, member: discord.Member, tempo: int, *, reason="Não especificado"):
+    """Muta um usuário por um tempo determinado."""
+    
+    mute_role = discord.utils.get(ctx.guild.roles, name="Mutado")
+    if not mute_role:
+        try:
+            mute_role = await ctx.guild.create_role(name="Mutado", reason="Cargo para usuários mutados")
+            for channel in ctx.guild.channels:
+                await channel.set_permissions(mute_role, send_messages=False, speak=False)
+        except discord.Forbidden:
+            return await ctx.send("❌ **Erro:** Não tenho permissão para criar o cargo 'Mutado'.")
+    
+    if mute_role in member.roles:
+        return await ctx.send(f"⚠️ **Erro:** {member.mention} já está mutado!")
+
+    try:
+        await member.add_roles(mute_role)
+        await ctx.send(f"🔇 {member.mention} foi **mutado** por {tempo} minutos! Motivo: {reason}")
+        await enviar_alerta(ctx.guild, member, "Mute", reason, ctx.author)
+
+        await asyncio.sleep(tempo * 60)
+
+        await member.remove_roles(mute_role)
+        await ctx.send(f"✅ {member.mention} foi **desmutado** automaticamente.")
+        await enviar_alerta(ctx.guild, member, "Desmute", "Tempo de mute expirado.")
+
+    except discord.Forbidden:
+        await ctx.send("❌ **Erro:** Não tenho permissão para mutar esse usuário.")
+    except discord.HTTPException:
+        await ctx.send("❌ **Erro:** Ocorreu um problema ao tentar mutar o usuário.")
+
+@mute.error
+async def mute_error(ctx, error):
+    """Trata erros do comando !mute."""
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("❌ **Uso correto:** `!mute @usuário <tempo (min)> <motivo>`")
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ **Erro:** Você não tem permissão para mutar membros!")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("❌ **Erro:** Usuário ou tempo inválido. Certifique-se de mencionar corretamente!")
+
+# 🔥 Comando de Aviso (Warn) Atualizado com Tratamento de Erro
+@bot.command()
+@commands.has_permissions(manage_messages=True)
+async def warn(ctx, member: discord.Member, *, reason="Não especificado"):
+    """Avisa um usuário sobre comportamento inadequado."""
+    
+    try:
+        await ctx.send(f"⚠️ {member.mention}, você recebeu um aviso! Motivo: {reason}")
+        await enviar_alerta(ctx.guild, member, "Aviso", reason, ctx.author)
+    except discord.Forbidden:
+        await ctx.send("❌ **Erro:** Não tenho permissão para avisar esse usuário.")
+    except discord.HTTPException:
+        await ctx.send("❌ **Erro:** Ocorreu um erro ao enviar o aviso.")
+
+@warn.error
+async def warn_error(ctx, error):
+    """Trata erros do comando !warn."""
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("❌ **Uso correto:** `!warn @usuário <motivo>`")
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ **Erro:** Você não tem permissão para avisar membros!")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("❌ **Erro:** Usuário inválido. Mencione corretamente!")
+
+
+# 🚨 SISTEMA DE CAPTCHA 🚨
 @bot.event
 async def on_member_join(member):
     captcha_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
+    # Criar imagem do CAPTCHA
     img = Image.new('RGB', (200, 80), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
     font = ImageFont.load_default()
     draw.text((50, 30), captcha_code, fill=(0, 0, 0), font=font)
     
+    # Salvar imagem temporária
     captcha_path = f"captcha_{member.id}.png"
     img.save(captcha_path)
 
@@ -219,6 +295,7 @@ async def lock(ctx):
     await ctx.send(f"🔒 {ctx.channel.mention} foi bloqueado! Apenas administradores podem falar.")
     
 
+
 @bot.command()
 @commands.has_permissions(manage_channels=True)
 async def unlock(ctx):
@@ -263,17 +340,6 @@ async def clear(ctx, amount: int):
         return
     
     deleted = await ctx.channel.purge(limit=amount + 1) 
-    canal_logs = discord.utils.get(ctx.guild.text_channels, name="📜│logs")
-    if canal_logs:
-        embed = discord.Embed(
-            title="🧹 Mensagens Apagadas",
-            description=f"**Canal:** {ctx.channel.mention}\n"
-                        f"**Mensagens apagadas:** `{len(deleted) - 1}`\n"
-                        f"**Comando executado por:** {ctx.author.mention}",
-            color=discord.Color.orange()
-        )
-        await canal_logs.send(embed=embed)
-
     await ctx.send(f"✅ {len(deleted) - 1} mensagens foram apagadas!", delete_after=5)
 
 @clear.error
@@ -319,7 +385,7 @@ CARGO_SUB_FUNDADOR = "sub funder"
 CARGO_SUPORTE = "suport"  
 CARGO_ADMIN = "admin"  
 CARGO_ASSISTENTE = "assistant"
-CANAL_LOGS = "📜│logs-ticket"  
+CANAL_LOGS = "logs-ticket"  
 
 class TicketView(View):
     def __init__(self):
@@ -418,7 +484,7 @@ async def on_ready():
     bot.add_view(CloseTicketView())
     print(f"✅ {bot.user} está online!")
     
-AUDITORIA_CANAL = "📜│logs"
+AUDITORIA_CANAL = "registro-de-auditoria"
 
 async def log_auditoria(guild, mensagem):
     canal = discord.utils.get(guild.text_channels, name=AUDITORIA_CANAL)
@@ -485,72 +551,116 @@ async def on_guild_role_update(before, after):
     if before.name != after.name:
         await log_auditoria(after.guild, f"📝 **Cargo renomeado**\n📌 **Antes:** `{before.name}`\n📌 **Depois:** `{after.name}`")
 
-@bot.event
-async def on_message_delete(message):
-    if message.author.bot:
-        return
-
-    canal = discord.utils.get(message.guild.text_channels, name="📜│logs")
-    if canal is None:
-        print("❌ Canal '📜│logs' não encontrado!")
-        return
-
+@bot.command()
+async def regras(ctx):
     embed = discord.Embed(
-        title="🗑️ Mensagem Apagada",
-        description=f"**Usuário:** {message.author.mention}\n"
-                    f"**Canal:** {message.channel.mention}\n"
-                    f"**Mensagem:** `{message.content}`",
-        color=discord.Color.red()
+        title="📜 Regras da Comunidade - Black Bot",
+        description="Seja bem-vindo ao nosso servidor! Para garantir um ambiente seguro e agradável para todos, siga as regras abaixo:",
+        color=discord.Color.blue()
     )
 
-    await canal.send(embed=embed)
+    embed.add_field(name="🚨 1. Respeito acima de tudo", value="🔹 Trate todos com respeito, sem ofensas, assédios ou bullying.\n🔹 Discurso de ódio será punido severamente.", inline=False)
 
-ALERTA_CANAL_ID = 1348389019372748820  
+    embed.add_field(name="🔒 2. Proibição de conteúdo impróprio", value="🔹 Proibido NSFW, discurso de ódio e conteúdos que violem direitos autorais.", inline=False)
 
-async def enviar_alerta(guild, usuario, tipo, motivo, responsavel=None):
-    canal_alerta = guild.get_channel(ALERTA_CANAL_ID)
-    if not canal_alerta:
-        print("❌ Canal de alertas não encontrado!")
+    embed.add_field(name="⚠️ 3. Sem spam ou flood", value="🔹 Sem mensagens repetitivas, CAPS LOCK excessivo ou menções desnecessárias.", inline=False)
+
+    embed.add_field(name="🛡 4. Segurança e Privacidade", value="🔹 Não compartilhe informações pessoais.\n🔹 Evite cair em golpes! Não clique em links suspeitos.", inline=False)
+
+    embed.add_field(name="🔗 5. Links suspeitos e scams", value="🔹 Links encurtados ou suspeitos = **Ban automático**.", inline=False)
+
+    embed.add_field(name="🎮 6. Comportamento nos canais de voz", value="🔹 Sem gritaria, sons irritantes ou perturbação nos canais de voz.", inline=False)
+
+    embed.add_field(name="📌 7. Sistema de Moderação", value="🔹 Black Bot aplica punições automáticas:\n✅ Linguagem ofensiva → **Mute (3 min)**\n✅ Links suspeitos → **Ban**\n✅ Spam → **Aviso**", inline=False)
+
+    embed.add_field(name="🎟 8. Sistema de Tickets", value="🔹 Para suporte, abra um ticket no canal **#suporte**.", inline=False)
+
+    embed.add_field(name="📜 9. Uso correto dos canais", value="🔹 **#bate-papo** para conversas gerais.\n🔹 **#memes** para memes.\n🔹 **#logs** para acompanhar ações da moderação.", inline=False)
+
+    embed.add_field(name="❌ 10. Penalidades", value="⚠️ Descumprir regras resulta em:\n- Avisos ⚠️\n- Mute 🔇\n- Expulsão 🚪\n- Banimento 🔨", inline=False)
+
+    embed.set_footer(text="✅ Ao permanecer no servidor, você concorda com todas as regras.")
+
+    await ctx.send(embed=embed)
+    
+@bot.command()
+@commands.has_permissions(administrator=True)  # Apenas administradores podem usar
+async def anuncio(ctx, *, mensagem=None):
+    if not mensagem:  # Se a mensagem estiver vazia
+        await ctx.send(f"❌ {ctx.author.mention}, você precisa escrever um anúncio!\n\n**Exemplo:** `!anuncio Atualização no servidor! 🎉`")
         return
-
+    
     embed = discord.Embed(
-        title="🚨 PUNIÇÃO APLICADA 🚨",
-        description=f"**Usuário:** {usuario.mention} (`{usuario.id}`)\n"
-                    f"**Punição:** `{tipo}`\n"
-                    f"**Motivo:** `{motivo}`",
-        color=discord.Color.red()
+        title="📢 Anúncio Importante!",
+        description=mensagem,
+        color=discord.Color.gold()
     )
 
-    if responsavel:
-        embed.add_field(name="👮 Responsável:", value=responsavel.mention, inline=False)
+    embed.set_footer(text=f"Anunciado por {ctx.author.name}", icon_url=ctx.author.avatar.url)
+    embed.set_thumbnail(url="https://cdn-icons-png.flaticon.com/512/3039/3039362.png")  # Ícone de megafone
+    embed.timestamp = discord.utils.utcnow()
 
-    embed.set_thumbnail(url=usuario.avatar.url if usuario.avatar else usuario.default_avatar.url)
-    await canal_alerta.send(embed=embed)
+    await ctx.send("@everyone", embed=embed)  # Menciona todos do servidor
 
+@anuncio.error
+async def anuncio_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send(f"❌ {ctx.author.mention}, você não tem permissão para fazer anúncios!")
 
-@bot.command()
-@commands.has_permissions(manage_roles=True)
-async def mute(ctx, member: discord.Member, tempo: int, *, reason="Não especificado"):
-    mute_role = discord.utils.get(ctx.guild.roles, name="Mutado")
-    if not mute_role:
-        mute_role = await ctx.guild.create_role(name="Mutado")
-        for channel in ctx.guild.channels:
-            await channel.set_permissions(mute_role, send_messages=False, speak=False)
+@bot.command(name="commands", aliases=["comandos"])
+async def commands_list(ctx):
+    embed = discord.Embed(
+        title="📜 Lista de Comandos",
+        description="Aqui estão todos os comandos disponíveis no Black Bot:",
+        color=discord.Color.blue()
+    )
 
-    await member.add_roles(mute_role)
-    await ctx.send(f"🔇 {member.mention} foi **mutado** por {tempo} minutos! Motivo: {reason}")
-    await enviar_alerta(ctx.guild, member, "Mute", reason, ctx.author)
+    embed.add_field(
+        name="🔨 **Moderação**",
+        value=(
+            "`!ban @usuário [motivo]` → Bane um usuário.\n"
+            "`!kick @usuário [motivo]` → Expulsa um usuário.\n"
+            "`!unban <ID>` → Remove o ban de um usuário.\n"
+            "`!mute @usuário <tempo>` → Silencia um usuário por X minutos.\n"
+            "`!warn @usuário [motivo]` → Dá um aviso a um usuário."
+        ),
+        inline=False
+    )
 
-    await asyncio.sleep(tempo * 60)
-    await member.remove_roles(mute_role)
-    await ctx.send(f"✅ {member.mention} foi **desmutado** automaticamente.")
-    await enviar_alerta(ctx.guild, member, "Desmute", "Tempo de mute expirado.")
+    embed.add_field(
+        name="📢 **Anúncios**",
+        value="`!anuncio <mensagem>` → Envia um anúncio para o servidor.",
+        inline=False
+    )
 
-@bot.command()
-@commands.has_permissions(manage_messages=True)
-async def warn(ctx, member: discord.Member, *, reason="Não especificado"):
-    await ctx.send(f"⚠️ {member.mention}, você recebeu um aviso! Motivo: {reason}")
-    await enviar_alerta(ctx.guild, member, "Aviso", reason, ctx.author)
+    embed.add_field(
+        name="🎫 **Sistema de Tickets**",
+        value="`!painel-ticket` → Cria um painel para abrir tickets de suporte.",
+        inline=False
+    )
 
+    embed.add_field(
+        name="🛑 **Segurança e Logs**",
+        value=(
+            "`!clear <quantidade>` → Apaga mensagens do chat.\n"
+            "O bot também **deleta mensagens impróprias automaticamente** e **protege contra links suspeitos**."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🔗 **Links Úteis**",
+        value=(
+            "[Adicione o Bot](https://discord.com/oauth2/authorize?client_id=1348279158521860186)\n"
+            "[Servidor de Suporte](https://discord.gg/4b7wzaaHST)"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text=f"Comando solicitado por {ctx.author.name}", icon_url=ctx.author.avatar.url)
+
+    await ctx.send(embed=embed)
+    
+    
 bot.run("SEU_TOKEN")
 
