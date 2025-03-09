@@ -17,7 +17,7 @@ Um bot avançado para Discord com **sistema de tickets, auditoria, CAPTCHA, mode
 ### **🎫 Tickets**
 | Comando | Descrição |
 |---------|-----------|
-| `!painel_ticket` | Envia um painel para criar tickets |
+| `!ticket` | Envia um painel para criar tickets |
 
 ### **🚨 Moderação**
 | Comando | Descrição |
