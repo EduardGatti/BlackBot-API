@@ -478,5 +478,5 @@ async def on_message_delete(message):
 
     await canal.send(embed=embed)
 
-bot.run("SEU_TOKEN☑️")
+bot.run("MTM0ODI3OTE1ODUyMTg2MDE4Ng.Gmzkeh.iAR7908Cti30yI5sitfaslFiwmNJV9bl3WwAk0")
 
