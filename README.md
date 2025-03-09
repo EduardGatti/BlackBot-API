@@ -57,6 +57,4 @@ Um bot avançado para Discord com **sistema de tickets, auditoria, CAPTCHA, mode
 
 ---
 
-Agora, o bot está **pronto para ser commitado no GitHub**. 🚀  
-Se precisar de mais alguma coisa, só avisar! 😃
 
