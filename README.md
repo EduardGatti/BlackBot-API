@@ -37,10 +37,16 @@ Um bot avançado para Discord com **sistema de tickets, auditoria, CAPTCHA, mode
 ## ⚙️ **Configuração**
 1. **Criar os canais**: `logs`, `verifycaptcha`, `welcome`.
 2. **Definir cargos**: `admin`, `suport`, `assistant`, `verifyAccepted`.
-3. **Rodar o bot:**
-    `source .venv/bin/activate`
-    `pip install -U discord.py`
-    `pip install pillow`
+
+---
+
+## ⚙️ **Configuração**
+### 🔧 **Passo a passo para rodar o bot**
+1. **Instale os requisitos**  
+   Certifique-se de ter o Python instalado e execute:  
+   ```bash
+   pip install -U discord.py pillow aiohttp
+
 ---
 
 ## 🚀 **Como Contribuir**
